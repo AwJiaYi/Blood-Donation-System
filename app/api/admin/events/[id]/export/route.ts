@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../../lib/prisma';
-import { requireAdminOrThrow } from '../../../../../lib/auth';
+import prisma from '@/lib/prisma'; // 🎯 优雅指回根目录下的 lib
+import { requireAdminOrThrow } from '@/lib/auth'; // 🎯 优雅指回根目录下的 lib
 
 function escapeCsvField(value: any) {
   if (value == null) return '';
