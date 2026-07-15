@@ -29,6 +29,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     load();
@@ -95,6 +96,32 @@ export default function EventDetailPage() {
     }
   }
 
+  async function exportCsv() {
+    if (!confirm('导出当前活动的所有报名为 CSV？')) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/admin/events/${id}/export`, { credentials: 'include' });
+      if (res.status === 401) {
+        window.location.href = '/admin/login';
+        return;
+      }
+      if (!res.ok) throw new Error('导出失败');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `event-${id}-registrations.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || '导出失败');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-red-50 p-6">
       <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow">
@@ -106,12 +133,22 @@ export default function EventDetailPage() {
           <div>未找到事件</div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold text-red-600 mb-2">{event.title}</h1>
-            <div className="text-sm text-gray-600 mb-4">{new Date(event.dateTime).toLocaleString()}</div>
-            <div className="mb-4 text-gray-700">{event.description}</div>
-            <div className="mb-6">
-              <span className="font-medium">地点: </span>{event.location || '-'}
-              <span className="ml-4 font-medium">容量: </span>{event.capacity ?? '-'}
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-red-600 mb-2">{event.title}</h1>
+                <div className="text-sm text-gray-600 mb-4">{new Date(event.dateTime).toLocaleString()}</div>
+                <div className="mb-4 text-gray-700">{event.description}</div>
+                <div className="mb-6">
+                  <span className="font-medium">地点: </span>{event.location || '-'}
+                  <span className="ml-4 font-medium">容量: </span>{event.capacity ?? '-'}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button onClick={exportCsv} disabled={exporting} className="px-3 py-2 bg-blue-600 text-white rounded">
+                  {exporting ? '导出中…' : '导出报名 CSV'}
+                </button>
+              </div>
             </div>
 
             <h2 className="text-xl font-semibold mb-3">报名列表</h2>
