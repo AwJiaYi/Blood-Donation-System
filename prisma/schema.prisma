@@ -1,0 +1,43 @@
+// Prisma schema for Blood Donation System
+// Use SQLite for local development. Set DATABASE_URL in .env
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Event {
+  id            String         @id @default(uuid())
+  title         String
+  description   String?
+  location      String?
+  dateTime      DateTime
+  capacity      Int?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  registrations Registration[]
+}
+
+model Registration {
+  id        String   @id @default(uuid())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  name      String
+  email     String
+  phone     String?
+  status    String   @default("pending")
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+}
