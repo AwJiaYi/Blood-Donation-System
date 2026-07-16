@@ -1,0 +1,45 @@
+### 变量配置（确保你的 dev 服务器在 3000 端口运行）
+@baseUrl = http://localhost:3000/api
+@adminEmail = admin@example.com
+@adminPassword = admin123
+
+### 1. 拦截测试：在不登录的情况下尝试获取活动列表（预期：报 401 错误）
+GET {{baseUrl}}/admin/events
+Accept: application/json
+
+###
+
+### 2. 管理员登录：获取 Token（预期：成功返回 token，并附带 HttpOnly Cookie）
+# @name loginRequest
+POST {{baseUrl}}/admin/login
+Content-Type: application/json
+
+{
+    "email": "{{adminEmail}}",
+    "password": "{{adminPassword}}"
+}
+
+###
+
+### 提取登录成功后的 Token 变量（供下方接口自动引用）
+@authToken = {{loginRequest.response.body.token}}
+
+### 3. 鉴权通过测试：带上 Token 再次获取活动列表（预期：200 OK 并看到 Seed 导入的活动）
+GET {{baseUrl}}/admin/events
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+###
+
+### 4. 业务操作测试：创建一个新的献血活动（预期：201 Created）
+POST {{baseUrl}}/admin/events
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "title": "新山社区热血同行募捐活动",
+    "description": "救人一命，无上光荣。请踊跃报名。",
+    "location": "新山市政厅大礼堂",
+    "dateTime": "2026-08-20T09:00:00.000Z",
+    "capacity": 80
+}

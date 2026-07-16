@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../../lib/prisma'; // 根据你的实际相对路径调整
-import { requireAdminOrThrow } from '../../../../../lib/auth';
+import prisma from '@/lib/prisma';
+import { requireAdminOrThrow } from '@/lib/auth';
 
 type RouteParams = {
-  params: Promise<{ id: string }>; // 🎯 Next.js 15 中 params 是一个 Promise
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(req: Request, { params }: RouteParams) {
   try {
     // 1. 权限校验
-    requireAdminOrThrow(req);
+    await requireAdminOrThrow(req);
 
-    // 2. 🎯 异步等待解包 params
+    // 2. 异步等待解包 params
     const { id } = await params;
     console.log('[API GET] 正在获取活动详情，ID 为:', id);
 
