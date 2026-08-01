@@ -11,6 +11,8 @@ type EventItem = {
   location?: string | null;
   dateTime: string;
   capacity?: number | null;
+  activeRegistrations?: number;
+  remainingCapacity?: number | null;
 };
 
 export default function AdminEventsPage() {
@@ -30,7 +32,6 @@ export default function AdminEventsPage() {
     try {
       const res = await fetch("/api/admin/events", { credentials: "include" });
       if (res.status === 401) {
-        // Not logged in, redirect to login
         window.location.href = "/admin/login";
         return;
       }
@@ -102,6 +103,7 @@ export default function AdminEventsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">地点</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">容量</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">剩余名额</th>
                   <th className="px-6 py-3">操作</th>
                 </tr>
               </thead>
@@ -113,6 +115,9 @@ export default function AdminEventsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">{e.location || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{e.capacity ?? '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      {e.remainingCapacity == null ? '不限额' : e.remainingCapacity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex gap-2">
                         <button onClick={() => openEdit(e)} className="px-3 py-1 bg-yellow-400 rounded text-sm">编辑</button>
                         <button onClick={() => handleDelete(e.id)} className="px-3 py-1 bg-red-600 text-white rounded text-sm">删除</button>
@@ -121,6 +126,11 @@ export default function AdminEventsPage() {
                     </td>
                   </tr>
                 ))}
+                {events.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">暂无活动</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
