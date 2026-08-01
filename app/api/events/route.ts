@@ -1,18 +1,39 @@
+"use server";
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// 公开接口：获取所有活动列表，供普通用户浏览/选择
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const events = await prisma.event.findMany({
-      orderBy: { dateTime: 'asc' }, // 按时间先后排序
-    });
-    return NextResponse.json(events);
+    // 获取所有活动（按时间排序）
+    const events = await prisma.event.findMany({ orderBy: { dateTime: 'asc' } });
+
+    // 为每个活动计算 activeRegistrations（排除 status 为 'cancelled' 的报名）
+    const eventsWithRemaining = await Promise.all(events.map(async (ev) => {
+      const activeRegistrations = await prisma.registration.count({
+        where: {
+          eventId: ev.id,
+          NOT: { status: 'cancelled' },
+        },
+      });
+
+      let remainingCapacity: number | null = null;
+      if (ev.capacity === null || ev.capacity === undefined) {
+        remainingCapacity = null; // 表示不限额
+      } else {
+        remainingCapacity = Math.max(0, ev.capacity - activeRegistrations);
+      }
+
+      return {
+        ...ev,
+        remainingCapacity,
+        activeRegistrations,
+      };
+    }));
+
+    return NextResponse.json({ items: eventsWithRemaining });
   } catch (err: any) {
-    console.error('[Public Events GET Error]:', err);
-    return NextResponse.json(
-      { error: '无法获取活动列表' }, 
-      { status: 500 }
-    );
+    console.error('[public events GET] failed', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }
