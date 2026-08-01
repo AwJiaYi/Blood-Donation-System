@@ -1,3 +1,4 @@
+// app/register/manage/page.tsx
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -27,7 +28,7 @@ function statusDisplay(status?: string) {
     pending: { label: "待审核", className: "bg-amber-100 text-amber-800" },
     approved: { label: "已通过", className: "bg-green-100 text-green-800" },
     rejected: { label: "已拒绝", className: "bg-red-100 text-red-800" },
-    cancelled: { label: "已取消", className: "bg-gray-100 text-gray-700" },
+    cancelled: { label: "已取消", className: "bg-red-100 text-red-800" },
   };
   return map[key] ?? { label: status || "待审核", className: "bg-gray-100 text-gray-700" };
 }
@@ -35,32 +36,43 @@ function statusDisplay(status?: string) {
 function ManageContent() {
   const searchParams = useSearchParams();
   const regId = searchParams.get("id");
+  const tokenParam = searchParams.get("token");
 
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [processingCancel, setProcessingCancel] = useState(false);
 
   useEffect(() => {
     if (!regId) {
-      setError("缺少预约 ID，请检查链接是否完整");
+      setLoadError("缺少预约 ID，请检查链接是否完整");
       setLoading(false);
       return;
     }
 
     const id = regId.trim();
     if (!id) {
-      setError("缺少预约 ID，请检查链接是否完整");
+      setLoadError("缺少预约 ID，请检查链接是否完整");
       setLoading(false);
       return;
     }
 
+    if (!tokenParam?.trim()) {
+      setLoadError("缺少访问凭证 token，请使用报名成功后提供的完整管理链接");
+      setLoading(false);
+      return;
+    }
+
+    const accessToken = tokenParam.trim();
     let cancelled = false;
 
     async function fetchRegistration() {
       try {
         setLoading(true);
-        setError(null);
-        const res = await fetch(`/api/registrations/${encodeURIComponent(id)}`);
+        setLoadError(null);
+        const tokenQuery = `?token=${encodeURIComponent(accessToken)}`;
+        const res = await fetch(`/api/registrations/${encodeURIComponent(id)}${tokenQuery}`);
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || "无法加载预约信息");
@@ -70,7 +82,7 @@ function ManageContent() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "获取预约失败");
+          setLoadError(err instanceof Error ? err.message : "获取预约失败");
         }
       } finally {
         if (!cancelled) {
@@ -83,7 +95,7 @@ function ManageContent() {
     return () => {
       cancelled = true;
     };
-  }, [regId]);
+  }, [regId, tokenParam]);
 
   const qrCodeUrl = useMemo(() => {
     if (!regId) return "";
@@ -91,6 +103,33 @@ function ManageContent() {
   }, [regId]);
 
   const status = statusDisplay(registration?.status);
+
+  const canCancel = (registration?.status || "").toLowerCase() === "pending";
+
+  async function handleCancel() {
+    if (!registration?.id || !tokenParam?.trim()) return;
+    const ok = window.confirm("确定要取消此预约吗？取消后将无法恢复。");
+    if (!ok) return;
+
+    setProcessingCancel(true);
+    setActionError(null);
+    try {
+      const id = registration.id;
+      const tokenQuery = `?token=${encodeURIComponent(tokenParam.trim())}`;
+      const res = await fetch(`/api/registrations/${encodeURIComponent(id)}${tokenQuery}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "取消预约失败");
+      }
+      setRegistration((r) => (r ? { ...r, status: "CANCELLED" } : r));
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "取消预约失败");
+    } finally {
+      setProcessingCancel(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -100,12 +139,12 @@ function ManageContent() {
     );
   }
 
-  if (error || !registration) {
+  if (loadError || !registration) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center border border-red-100">
           <div className="text-red-600 font-semibold mb-2">无法显示凭证</div>
-          <p className="text-sm text-gray-600 mb-6">{error || "预约不存在"}</p>
+          <p className="text-sm text-gray-600 mb-6">{loadError || "预约不存在"}</p>
           <Link href="/register" className="text-sm text-red-600 hover:underline">
             返回报名页
           </Link>
@@ -113,6 +152,8 @@ function ManageContent() {
       </div>
     );
   }
+
+  const isCancelled = (registration.status || "").toLowerCase() === "cancelled";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 py-10 px-4">
@@ -126,7 +167,7 @@ function ManageContent() {
               {registration.event?.title || "献血预约凭证"}
             </div>
 
-            {qrCodeUrl && (
+            {!isCancelled && qrCodeUrl && (
               <div className="flex justify-center my-4">
                 <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -193,6 +234,29 @@ function ManageContent() {
               返回首页
             </Link>
           </div>
+
+          {canCancel && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={processingCancel}
+                className="w-full bg-gray-50 hover:bg-gray-100 text-red-600 border border-red-200 font-semibold py-2 px-4 rounded-md transition text-sm disabled:opacity-60"
+              >
+                {processingCancel ? "取消中…" : "取消预约"}
+              </button>
+            </div>
+          )}
+
+          {isCancelled && (
+            <div className="mt-4">
+              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 text-red-700 border border-red-100">
+                已取消
+              </div>
+            </div>
+          )}
+
+          {actionError && <div className="mt-3 text-sm text-red-600">{actionError}</div>}
         </div>
       </main>
     </div>

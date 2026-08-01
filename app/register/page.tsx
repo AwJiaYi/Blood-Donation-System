@@ -93,7 +93,10 @@ export default function Register() {
       setRegistrationId(regId);
 
       // 生成管理/凭证链接
-      const token = data.editToken || "token";
+      const token = data.token || data.editToken;
+      if (!token) {
+        throw new Error("未收到访问凭证，无法生成管理链接");
+      }
       const url = `${window.location.origin}/register/manage?id=${regId}&token=${token}`;
       setManageUrl(url);
 

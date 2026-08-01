@@ -13,7 +13,9 @@ export async function GET(req: Request) {
       const activeRegistrations = await prisma.registration.count({
         where: {
           eventId: ev.id,
-          NOT: { status: 'cancelled' },
+          NOT: {
+            status: { in: ['cancelled', 'CANCELLED'] },
+          },
         },
       });
 

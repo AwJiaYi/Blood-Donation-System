@@ -31,7 +31,7 @@ model Registration {
   email     String
   phone     String?
   status    String   @default("pending")
-  editToken String   @default(uuid())
+  token     String?  // 预约凭证（仅存 DB；创建/管理 API 对外同时返回 token 与 editToken 别名）
   notes     String?
   createdAt DateTime @default(now())
 }
