@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 
 type EventItem = {
@@ -21,6 +21,9 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [manageUrl, setManageUrl] = useState<string>("");
+  const [registrationId, setRegistrationId] = useState<string>("");
+  
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // 1. 表单字段定义
   const [name, setName] = useState("");
@@ -85,11 +88,14 @@ export default function Register() {
         throw new Error(data.error || "报名失败，请稍后重试");
       }
 
-      // 生成带有 id 和 editToken 的管理链接
-      if (data.id && data.editToken) {
-        const url = `${window.location.origin}/register/manage?id=${data.id}&token=${data.editToken}`;
-        setManageUrl(url);
-      }
+      // 获取并保存生成的 ID
+      const regId = data.id || data.registrationId;
+      setRegistrationId(regId);
+
+      // 生成管理/凭证链接
+      const token = data.editToken || "token";
+      const url = `${window.location.origin}/register/manage?id=${regId}&token=${token}`;
+      setManageUrl(url);
 
       setSubmitted(true);
     } catch (err: any) {
@@ -98,6 +104,16 @@ export default function Register() {
       setSubmitting(false);
     }
   };
+
+  // 自动下载/保存凭证（通过触发打印/存为PDF）
+  const handlePrintOrSave = () => {
+    window.print();
+  };
+
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+  const qrCodeUrl = registrationId 
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(registrationId)}` 
+    : "";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 py-8">
@@ -121,7 +137,7 @@ export default function Register() {
                     value={selectedEventId}
                     onChange={(e) => setSelectedEventId(e.target.value)}
                     required
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-red-500 focus:border-red-500 border"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-red-500 focus:border-red-500"
                   >
                     <option value="">-- 请选择活动 --</option>
                     {events.map((ev) => (
@@ -156,7 +172,7 @@ export default function Register() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm border"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                   placeholder="请输入您的姓名"
                 />
               </div>
@@ -170,7 +186,7 @@ export default function Register() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm border"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                   placeholder="name@example.com"
                 />
               </div>
@@ -184,7 +200,7 @@ export default function Register() {
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm border"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                   placeholder="012-3456789"
                 />
               </div>
@@ -197,7 +213,7 @@ export default function Register() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm border"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                   placeholder="如：第一次献血、特定血型等（可选）"
                 />
               </div>
@@ -228,44 +244,87 @@ export default function Register() {
             </form>
           </div>
         ) : (
-          /* 提交成功页面 */
-          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 text-center">
-            <h1 className="text-3xl font-bold text-red-600 mb-2">预约成功！</h1>
-            <p className="text-gray-600 mb-6">
-              感谢您的无私奉献！请妥善保存下方专属管理链接，您可用它随时修改或取消预约。
+          /* 提交成功页面（现场出示凭证） */
+          <div className="bg-white rounded-lg shadow-xl p-6 md:p-8 text-center max-w-xl mx-auto border border-gray-100">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-1">预约成功！</h1>
+            <p className="text-gray-500 text-sm mb-6">
+              请在现场出示下方二维码或预约凭证给管理员快速核验
             </p>
 
-            {manageUrl && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 text-left">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  您的专属管理/凭证链接：
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={manageUrl}
-                    className="w-full text-xs bg-white border border-gray-300 rounded p-2 text-gray-700 select-all"
-                  />
+            {/* 可供核验的凭证卡片 */}
+            <div ref={cardRef} className="bg-gradient-to-b from-red-50 to-white border-2 border-dashed border-red-200 rounded-xl p-6 mb-6">
+              <div className="text-xs font-semibold text-red-500 tracking-wider uppercase mb-1">
+                {selectedEvent?.title || "献血预约凭证"}
+              </div>
+              
+              {/* 二维码区域 */}
+              {qrCodeUrl && (
+                <div className="flex justify-center my-4">
+                  <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 inline-block">
+                    {/* eslint-disable-next-html-link */}
+                    <img src={qrCodeUrl} alt="Registration QR Code" className="w-44 h-44 mx-auto" />
+                  </div>
+                </div>
+              )}
+
+              {/* 高亮展示 Registration ID */}
+              <div className="bg-white py-2 px-4 rounded-md shadow-inner border border-gray-200 mb-4 inline-block">
+                <div className="text-xs text-gray-400">REGISTRATION ID</div>
+                <div className="text-xl md:text-2xl font-mono font-bold text-red-600 tracking-wider select-all">
+                  {registrationId}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-left text-xs text-gray-600 border-t border-red-100 pt-3">
+                <div><span className="font-semibold text-gray-700">预约姓名：</span>{name}</div>
+                <div><span className="font-semibold text-gray-700">联系电话：</span>{phone}</div>
+                <div className="col-span-2">
+                  <span className="font-semibold text-gray-700">活动时间：</span>
+                  {selectedEvent ? new Date(selectedEvent.dateTime).toLocaleString() : "-"}
+                </div>
+              </div>
+            </div>
+
+            {/* 操作按钮组 */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handlePrintOrSave}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-md shadow transition flex items-center justify-center gap-2 text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  保存凭证 / 存为PDF
+                </button>
+
+                {manageUrl && (
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(manageUrl);
                       alert("专属链接已复制到剪贴板！");
                     }}
-                    className="px-3 py-2 bg-gray-800 hover:bg-gray-900 text-white text-xs font-medium rounded whitespace-nowrap"
+                    className="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-md shadow transition flex items-center justify-center gap-2 text-sm"
                   >
-                    复制链接
+                    复制管理链接
                   </button>
-                </div>
+                )}
               </div>
-            )}
 
-            <Link
-              href="/"
-              className="inline-block bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-3 rounded-md shadow-md"
-            >
-              返回首页
-            </Link>
+              <div>
+                <Link
+                  href="/"
+                  className="inline-block text-sm text-gray-500 hover:text-red-600 underline py-1"
+                >
+                  返回首页
+                </Link>
+              </div>
+            </div>
           </div>
         )}
       </main>

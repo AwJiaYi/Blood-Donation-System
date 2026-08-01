@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import crypto from 'crypto';
 
 // 公开接口：处理普通用户的活动报名提交
 export async function POST(req: Request) {
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
       );
     }
 
+    // 生成唯一的管理令牌
+    const token = crypto.randomBytes(16).toString('hex');
+
     // 将报名数据持久化写入 Prisma 数据库
     const newRegistration = await prisma.registration.create({
       data: {
@@ -34,7 +38,7 @@ export async function POST(req: Request) {
         email,
         phone: phone || null,
         notes: notes || null,
-        status: 'PENDING' // 默认为待审核状态
+        status: 'PENDING'
       }
     });
 
@@ -43,7 +47,8 @@ export async function POST(req: Request) {
     // 返回成功状态及生成的唯一凭证 ID
     return NextResponse.json({ 
       success: true, 
-      registrationId: newRegistration.id 
+      id: newRegistration.id,
+      editToken: token
     }, { status: 201 });
 
   } catch (err: any) {
