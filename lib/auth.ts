@@ -1,25 +1,27 @@
-import { verifyToken } from './jwt';
+import { verifyToken } from '@/lib/jwt';
+import { JwtPayload } from 'jsonwebtoken';
 
-export function getTokenFromRequest(req: Request) {
-  const auth = req.headers.get('authorization');
-  if (auth && auth.startsWith('Bearer ')) return auth.slice(7);
-
-  const cookie = req.headers.get('cookie');
-  if (!cookie) return null;
-  const match = cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('token='));
-  if (!match) return null;
-  return match.split('=')[1];
+// 🎯 定义具体的 User Payload 结构
+export interface AuthUser extends JwtPayload {
+  id?: string;
+  email?: string;
+  role?: string;
 }
 
-export function getUserFromRequest(req: Request) {
-  const token = getTokenFromRequest(req);
+export function getUserFromRequest(req: Request): AuthUser | null {
+  const authHeader = req.headers.get('authorization');
+  const token = authHeader?.split(' ')[1] || req.headers.get('cookie')?.split('token=')[1]?.split(';')[0];
+
   if (!token) return null;
-  try {
-    const payload = verifyToken(token);
-    return payload;
-  } catch (err) {
-    return null;
+
+  const decoded = verifyToken(token);
+  
+  // 确保 decoded 存在且是个对象（不是纯 string）
+  if (decoded && typeof decoded === 'object') {
+    return decoded as AuthUser;
   }
+
+  return null;
 }
 
 export function requireAdminOrThrow(req: Request) {
