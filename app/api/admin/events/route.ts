@@ -17,9 +17,19 @@ export async function POST(req: Request) {
   try {
     requireAdminOrThrow(req);
     const body = await req.json();
-    const { title, description, location, dateTime, capacity } = body || {};
+    const { title, description, location, dateTime, capacity, durationMinutes } = body || {};
     if (!title || !dateTime) {
       return new NextResponse(JSON.stringify({ error: 'title and dateTime are required' }), { status: 400 });
+    }
+
+    const dt = new Date(dateTime);
+    if (isNaN(dt.getTime())) {
+      return new NextResponse(JSON.stringify({ error: 'dateTime is invalid' }), { status: 400 });
+    }
+
+    const now = new Date();
+    if (dt.getTime() < now.getTime()) {
+      return new NextResponse(JSON.stringify({ error: '活动开始时间不能早于当前时间' }), { status: 400 });
     }
 
     const ev = await prisma.event.create({
@@ -27,8 +37,9 @@ export async function POST(req: Request) {
         title,
         description: description ?? null,
         location: location ?? null,
-        dateTime: new Date(dateTime),
+        dateTime: dt,
         capacity: capacity ?? null,
+        durationMinutes: typeof durationMinutes === 'number' ? durationMinutes : 60,
       },
     });
 
