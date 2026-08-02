@@ -1,336 +1,256 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 
-type EventItem = {
-  id: string;
-  title: string;
-  dateTime: string;
-  location?: string | null;
-  capacity?: number | null;
-  durationMinutes?: number | null;
-  remainingCapacity?: number | null;
-};
+function RegisterForm() {
+  const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+  const defaultEventId = searchParams.get("eventId") || "";
 
-export default function Register() {
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [remaining, setRemaining] = useState<number | null | undefined>(undefined);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  // 基础表单状态
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    bloodType: "A",
+    eventId: defaultEventId,
+  });
+
+  const [events, setEvents] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [manageUrl, setManageUrl] = useState<string>("");
-  const [registrationId, setRegistrationId] = useState<string>("");
-  
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{
+    success: boolean;
+    message: string;
+    registrationId?: string;
+    editToken?: string;
+  } | null>(null);
 
-  // 1. 表单字段定义
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
+  // 1. 加载可用活动列表
   useEffect(() => {
-    async function loadEvents() {
-      setLoadingEvents(true);
+    async function fetchEvents() {
       try {
         const res = await fetch("/api/events");
-        if (!res.ok) throw new Error("无法获取活动列表");
-        const body = await res.json();
-        setEvents(body.items ?? []);
+        if (res.ok) {
+          const data = await res.json();
+          setEvents(data.items ?? []);
+        }
       } catch (err) {
-        console.error("加载活动失败:", err);
-      } finally {
-        setLoadingEvents(false);
+        console.error("加载活动列表失败:", err);
       }
     }
-    loadEvents();
+    fetchEvents();
   }, []);
 
+  // 2. 如果用户已登录，自动填充姓名和邮箱
   useEffect(() => {
-    if (!selectedEventId) {
-      setRemaining(undefined);
-      return;
+    if (session?.user) {
+      setFormData((prev) => ({
+        ...prev,
+        name: session.user?.name || prev.name,
+        email: session.user?.email || prev.email,
+      }));
     }
-    const ev = events.find((e) => e.id === selectedEventId);
-    if (!ev) {
-      setRemaining(undefined);
-      return;
-    }
-    setRemaining(ev.remainingCapacity ?? null);
-  }, [selectedEventId, events]);
+  }, [session]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (remaining === 0) return;
-
-    setError(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSubmitting(true);
+    setResult(null);
 
     try {
       const res = await fetch("/api/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: selectedEventId,
-          name,
-          email,
-          phone,
-          notes,
-        }),
+        body: JSON.stringify(formData),
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "报名失败，请稍后重试");
+      if (res.ok) {
+        setResult({
+          success: true,
+          message: "预约成功！",
+          registrationId: data.registration?.id || data.id,
+          editToken: data.editToken || data.registration?.editToken,
+        });
+      } else {
+        setResult({
+          success: false,
+          message: data.error || "报名失败，请稍后重试",
+        });
       }
-
-      // 获取并保存生成的 ID
-      const regId = data.id || data.registrationId;
-      setRegistrationId(regId);
-
-      // 生成管理/凭证链接
-      const token = data.token || data.editToken;
-      if (!token) {
-        throw new Error("未收到访问凭证，无法生成管理链接");
-      }
-      const url = `${window.location.origin}/register/manage?id=${regId}&token=${token}`;
-      setManageUrl(url);
-
-      setSubmitted(true);
-    } catch (err: any) {
-      setError(err.message || "提交失败，请重试");
+    } catch (err) {
+      setResult({ success: false, message: "网络错误，请稍后重试" });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 自动下载/保存凭证（通过触发打印/存为PDF）
-  const handlePrintOrSave = () => {
-    window.print();
-  };
-
-  const selectedEvent = events.find((e) => e.id === selectedEventId);
-  const qrCodeUrl = registrationId 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(registrationId)}` 
-    : "";
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 py-8">
-      <main className="container mx-auto px-4 max-w-3xl">
-        {!submitted ? (
-          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-red-600 mb-6 text-center">
-              献血在线预约登记
-            </h1>
+    <div className="min-h-screen bg-slate-50 py-10 px-4">
+      <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-md border border-slate-100 p-6 sm:p-8">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+          <h1 className="text-2xl font-bold text-slate-800">🩸 在线献血预约</h1>
+          <Link href="/events" className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+            ← 活动列表
+          </Link>
+        </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 活动选择 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  选择献血活动 *
-                </label>
-                {loadingEvents ? (
-                  <div className="text-sm text-gray-500 py-2">加载活动列表中...</div>
-                ) : (
-                  <select
-                    value={selectedEventId}
-                    onChange={(e) => setSelectedEventId(e.target.value)}
-                    required
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="">-- 请选择活动 --</option>
-                    {events.map((ev) => (
-                      <option key={ev.id} value={ev.id}>
-                        {ev.title} — {new Date(ev.dateTime).toLocaleString()}
-                        {ev.durationMinutes ? ` (${ev.durationMinutes}分钟)` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {selectedEventId && remaining !== undefined && (
-                  <p className="text-sm mt-1.5 font-medium text-gray-700">
-                    剩余名额：
-                    {remaining === null ? (
-                      <span className="text-green-600">不限额</span>
-                    ) : remaining > 0 ? (
-                      <span className="text-green-600">{remaining} 人</span>
-                    ) : (
-                      <span className="text-red-600">名额已满</span>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {/* 个人基本信息 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  姓名 / Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="请输入您的姓名"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  电子邮箱 / Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="name@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  联系电话 / Phone *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="012-3456789"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  备注 / Notes
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="如：第一次献血、特定血型等（可选）"
-                />
-              </div>
-
-              {error && <div className="text-sm text-red-600 font-medium">{error}</div>}
-
-              <div className="flex items-center justify-between pt-4">
-                <Link
-                  href="/"
-                  className="text-sm text-gray-600 hover:text-red-600 underline"
-                >
-                  返回首页
-                </Link>
-                <button
-                  type="submit"
-                  disabled={submitting || remaining === 0}
-                  className={`bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2 rounded-md shadow-md transition-colors ${
-                    remaining === 0 ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {remaining === 0
-                    ? "名额已满"
-                    : submitting
-                    ? "提交中..."
-                    : "立即提交报名"}
-                </button>
-              </div>
-            </form>
+        {/* 登录状态提示条 */}
+        {status === "authenticated" ? (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg p-3 mb-6 flex items-center justify-between">
+            <span>✅ 已登录账号：<strong>{session.user?.email}</strong>（资料已自动预填）</span>
           </div>
         ) : (
-          /* 提交成功页面（现场出示凭证） */
-          <div className="bg-white rounded-lg shadow-xl p-6 md:p-8 text-center max-w-xl mx-auto border border-gray-100">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">预约成功！</h1>
-            <p className="text-gray-500 text-sm mb-6">
-              请在现场出示下方二维码或预约凭证给管理员快速核验
-            </p>
-
-            {/* 可供核验的凭证卡片 */}
-            <div ref={cardRef} className="bg-gradient-to-b from-red-50 to-white border-2 border-dashed border-red-200 rounded-xl p-6 mb-6">
-              <div className="text-xs font-semibold text-red-500 tracking-wider uppercase mb-1">
-                {selectedEvent?.title || "献血预约凭证"}
-              </div>
-              
-              {/* 二维码区域 */}
-              {qrCodeUrl && (
-                <div className="flex justify-center my-4">
-                  <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 inline-block">
-                    {/* eslint-disable-next-html-link */}
-                    <img src={qrCodeUrl} alt="Registration QR Code" className="w-44 h-44 mx-auto" />
-                  </div>
-                </div>
-              )}
-
-              {/* 高亮展示 Registration ID */}
-              <div className="bg-white py-2 px-4 rounded-md shadow-inner border border-gray-200 mb-4 inline-block">
-                <div className="text-xs text-gray-400">REGISTRATION ID</div>
-                <div className="text-xl md:text-2xl font-mono font-bold text-red-600 tracking-wider select-all">
-                  {registrationId}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-left text-xs text-gray-600 border-t border-red-100 pt-3">
-                <div><span className="font-semibold text-gray-700">预约姓名：</span>{name}</div>
-                <div><span className="font-semibold text-gray-700">联系电话：</span>{phone}</div>
-                <div className="col-span-2">
-                  <span className="font-semibold text-gray-700">活动时间：</span>
-                  {selectedEvent ? new Date(selectedEvent.dateTime).toLocaleString() : "-"}
-                </div>
-              </div>
-            </div>
-
-            {/* 操作按钮组 */}
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handlePrintOrSave}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-md shadow transition flex items-center justify-center gap-2 text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  保存凭证 / 存为PDF
-                </button>
-
-                {manageUrl && (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(manageUrl);
-                      alert("专属链接已复制到剪贴板！");
-                    }}
-                    className="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-md shadow transition flex items-center justify-center gap-2 text-sm"
-                  >
-                    复制管理链接
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <Link
-                  href="/"
-                  className="inline-block text-sm text-gray-500 hover:text-red-600 underline py-1"
-                >
-                  返回首页
-                </Link>
-              </div>
-            </div>
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg p-3 mb-6 flex items-center justify-between">
+            <span>💡 当前为<strong>访客身份</strong>。建议先登录以同步预约到个人仪表盘。</span>
+            <Link href="/login" className="font-bold underline ml-2 shrink-0">
+              去登录
+            </Link>
           </div>
         )}
-      </main>
+
+        {result?.success ? (
+          /* 报名成功结果卡片 */
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center space-y-4">
+            <div className="text-3xl">🎉</div>
+            <h2 className="text-xl font-bold text-emerald-900">{result.message}</h2>
+            <p className="text-xs text-slate-600">请保存好您的预约凭证信息：</p>
+            
+            <div className="bg-white p-4 rounded-lg border border-emerald-100 text-left space-y-2 text-xs font-mono">
+              <div><span className="text-slate-400">Registration ID:</span> <br/><strong className="text-slate-800 select-all">{result.registrationId}</strong></div>
+              {result.editToken && (
+                <div><span className="text-slate-400">Edit Token:</span> <br/><strong className="text-slate-800 select-all">{result.editToken}</strong></div>
+              )}
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Link
+                href="/user/dashboard"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg text-sm transition"
+              >
+                前往个人仪表盘
+              </Link>
+              <button
+                onClick={() => setResult(null)}
+                className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium py-2.5 rounded-lg text-sm transition"
+              >
+                继续预约
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* 表单区域 */
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {result?.success === false && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg">
+                ⚠️ {result.message}
+              </div>
+            )}
+
+            {/* 活动选择 */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                选择献血活动 <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={formData.eventId}
+                onChange={(e) => setFormData({ ...formData, eventId: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">-- 请选择活动 --</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.title} ({new Date(ev.dateTime).toLocaleDateString()})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 姓名 */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                姓名 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="请输入您的真实姓名"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            {/* 邮箱 */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                电子邮箱 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="example@domain.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            {/* 电话 */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                联系电话
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="请输入手机号码"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            {/* 血型 */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                血型
+              </label>
+              <select
+                value={formData.bloodType}
+                onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="A">A 型</option>
+                <option value="B">B 型</option>
+                <option value="AB">AB 型</option>
+                <option value="O">O 型</option>
+                <option value="UNKNOWN">不确定</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-sm transition disabled:opacity-50"
+            >
+              {submitting ? "提交中..." : "确认提交预约"}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-10">页面加载中...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

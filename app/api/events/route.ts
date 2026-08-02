@@ -1,41 +1,51 @@
-"use server";
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    // 获取所有活动（按时间排序）
     const events = await prisma.event.findMany({ orderBy: { dateTime: 'asc' } });
+    if (events.length === 0) return NextResponse.json({ items: [] });
 
-    // 为每个活动计算 activeRegistrations（排除 status 为 'cancelled' 的报名）
-    const eventsWithRemaining = await Promise.all(events.map(async (ev) => {
-      const activeRegistrations = await prisma.registration.count({
-        where: {
-          eventId: ev.id,
-          NOT: {
-            status: { in: ['cancelled', 'CANCELLED'] },
-          },
-        },
-      });
+    const eventIds = events.map((e) => e.id);
 
-      let remainingCapacity: number | null = null;
-      if (ev.capacity === null || ev.capacity === undefined) {
-        remainingCapacity = null; // 表示不限额
-      } else {
-        remainingCapacity = Math.max(0, ev.capacity - activeRegistrations);
-      }
+    // 统计非 CANCELLED 状态的报名人数
+    const counts = await prisma.registration.groupBy({
+      by: ['eventId'],
+      where: {
+        eventId: { in: eventIds },
+        NOT: { status: { in: ['CANCELLED', 'cancelled'] } },
+      },
+      _count: { eventId: true },
+    });
+
+    const countMap = new Map<string, number>();
+    counts.forEach((c) => countMap.set(c.eventId, c._count.eventId));
+
+    const now = Date.now();
+    const items = events.map((ev) => {
+      const activeRegistrations = countMap.get(ev.id) ?? 0;
+      const duration = ev.durationMinutes ?? 60; // 默认 60 分钟
+      
+      // 判断活动是否已结束/过期
+      const end = new Date(ev.dateTime);
+      end.setMinutes(end.getMinutes() + duration);
+      const expired = end.getTime() <= now;
+
+      // 计算剩余可用名额
+      const remainingCapacity =
+        ev.capacity == null ? null : Math.max(0, ev.capacity - activeRegistrations);
 
       return {
         ...ev,
-        remainingCapacity,
         activeRegistrations,
+        remainingCapacity,
+        expired,
       };
-    }));
+    });
 
-    return NextResponse.json({ items: eventsWithRemaining });
+    return NextResponse.json({ items });
   } catch (err: any) {
-    console.error('[public events GET] failed', err);
+    console.error(err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

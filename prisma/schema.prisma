@@ -11,29 +11,33 @@ generator client {
 }
 
 model Event {
-  id            String         @id @default(uuid())
-  title         String
-  description   String?
-  location      String?
-  dateTime      DateTime
-  capacity      Int?
-  durationMinutes Int?         // duration in minutes
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  registrations Registration[]
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  location        String?
+  dateTime        DateTime
+  capacity        Int?
+  durationMinutes Int?           // duration in minutes
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  registrations   Registration[]
 }
 
 model Registration {
-  id        String   @id @default(uuid())
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventId   String
-  name      String
-  email     String
-  phone     String?
-  status    String   @default("pending")
-  token     String?  // 预约凭证（仅存 DB；创建/管理 API 对外同时返回 token 与 editToken 别名）
-  notes     String?
-  createdAt DateTime @default(now())
+  id         String    @id @default(uuid())
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId    String
+  name       String
+  email      String
+  phone      String?
+  status     String    @default("pending")
+  token      String?
+  notes      String?
+  attendedAt DateTime? // 核销时间（null = 未核销）
+  userId     String?   // 绑定到登录用户 ID
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model AdminUser {
@@ -42,4 +46,56 @@ model AdminUser {
   passwordHash String
   role         String   @default("admin")
   createdAt    DateTime @default(now())
+}
+
+// ================= NextAuth 核心数据模型 =================
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?        // 用于保存账号密码注册时的哈希值
+  accounts      Account[]
+  sessions      Session[]
+  registrations Registration[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String   // 存放用户的 Email
+  token      String   @unique // 存放 6 位数字验证码
+  expires    DateTime // 验证码过期时间（如 10 分钟后）
+
+  @@unique([identifier, token])
 }
