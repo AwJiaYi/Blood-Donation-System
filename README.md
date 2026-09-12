@@ -22,6 +22,25 @@ The **Blood Donation System** is a full-stack web application built with **Next.
 - Access event-specific administration pages
 - Manage registration-related data through backend API routes
 
+### Event Operations
+
+- Event creation and management
+- Capacity and remaining-seat tracking
+- Registration approval, rejection and deletion
+- CSV export for event attendee data
+- Search and filter registered attendees
+
+### On-site Check-in
+
+- Search donor registration records
+- Record blood type
+- Record biological gender
+- Record weight
+- Record hemoglobin level
+- Record blood pressure
+- Validate donation eligibility based on entered vitals
+- Complete donor check-in
+- 
 ## Technologies
 
 ### Frontend
@@ -344,39 +363,37 @@ Use Prisma migrations and separated user/admin areas to support future changes.
 
 ## Screenshots
 
-Create:
+### User Flow
 
-```text
-docs/screenshots/
-```
-
-Suggested files:
-
-```text
-01-home.png
-02-events.png
-03-event-detail.png
-04-registration.png
-05-login.png
-06-user-dashboard.png
-07-admin-login.png
-08-admin-events.png
-09-admin-event-form.png
-```
-
-Example:
-
-```html
 <p align="center">
-  <img src="docs/screenshots/01-home.png" width="45%">
-  <img src="docs/screenshots/02-events.png" width="45%">
+  <img src="docs/screenshots/01-user-login.png" width="30%">
+  <img src="docs/screenshots/02-event-list.png" width="30%">
+  <img src="docs/screenshots/03-appointment-form.png" width="30%">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/06-user-dashboard.png" width="45%">
-  <img src="docs/screenshots/08-admin-events.png" width="45%">
+  <img src="docs/screenshots/04-appointment-success.png" width="30%">
+  <img src="docs/screenshots/05-user-dashboard.png" width="30%">
 </p>
-```
+
+### Admin Flow
+
+<p align="center">
+  <img src="docs/screenshots/06-admin-login.png" width="30%">
+  <img src="docs/screenshots/07-event-management.png" width="30%">
+  <img src="docs/screenshots/08-create-event.png" width="30%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/09-event-detail.png" width="45%">
+  <img src="docs/screenshots/10-check-in-vitals.png" width="45%">
+</p>
+
+### Database
+
+<p align="center">
+  <img src="docs/screenshots/11-prisma-database.png" width="90%">
+</p>
 
 ## Future Improvements
 
