@@ -1,36 +1,398 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Blood Donation System
 
-## Getting Started
+> Full-stack web application for managing blood donation events, user registrations, attendance records, and administrative event operations.
 
-First, run the development server:
+The **Blood Donation System** is a full-stack web application built with **Next.js**, **TypeScript**, **Prisma ORM**, and **SQLite** for local development. The project includes public donation-event workflows, user account functionality, event registration, user dashboards, API routes, and separate administrator pages for managing events.
+
+## Features
+
+### Public / User
+- Browse blood donation events
+- View event information
+- Register for donation events
+- Create an account and log in
+- Access a user dashboard
+- View registrations linked to the logged-in user
+- Bind an existing registration to a user account
+
+### Administrator
+- Separate administrator login area
+- View and manage donation events
+- Create and edit event information
+- Access event-specific administration pages
+- Manage registration-related data through backend API routes
+
+## Technologies
+
+### Frontend
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+
+### Backend
+- Next.js App Router
+- Next.js API Routes
+- Prisma ORM
+- SQLite for local development
+
+### Authentication & Security
+- NextAuth
+- Prisma Adapter for NextAuth
+- bcryptjs
+- JSON Web Tokens (JWT)
+
+### Other Tools
+- Resend
+- ESLint
+- ts-node
+- Git / GitHub
+
+## Architecture
+
+```text
+Next.js UI / App Router
+        |
+        v
+Application Routes
+        |
+        +-----------------------+
+        |                       |
+        v                       v
+Public / User Pages        Admin Pages
+        |                       |
+        +-----------+-----------+
+                    |
+                    v
+              API Routes
+                    |
+                    v
+               Prisma ORM
+                    |
+                    v
+              SQLite Database
+```
+
+## Project Structure
+
+```text
+Blood-Donation-System
+│
+├── app
+│   ├── admin
+│   │   ├── events
+│   │   └── login
+│   ├── api
+│   │   ├── admin
+│   │   ├── auth
+│   │   ├── events
+│   │   ├── registrations
+│   │   └── user
+│   ├── donate
+│   ├── events
+│   ├── login
+│   ├── register
+│   ├── register-account
+│   └── user
+│       └── dashboard
+├── components
+├── context
+├── lib
+├── prisma
+│   ├── migrations
+│   ├── schema.prisma
+│   └── seed.ts
+├── public
+├── package.json
+└── README.md
+```
+
+## Database Design
+
+### Event
+```text
+id
+title
+description
+location
+dateTime
+capacity
+durationMinutes
+createdAt
+updatedAt
+```
+
+### Registration
+```text
+id
+eventId
+name
+email
+phone
+status
+token
+notes
+attendedAt
+userId
+createdAt
+updatedAt
+```
+
+### User
+```text
+id
+name
+email
+emailVerified
+image
+password
+createdAt
+updatedAt
+```
+
+### AdminUser
+```text
+id
+email
+passwordHash
+role
+createdAt
+```
+
+### Authentication Models
+```text
+Account
+Session
+VerificationToken
+```
+
+## Main Flows
+
+### Donation Event Registration
+```text
+View Events
+    |
+    v
+Select Event
+    |
+    v
+Submit Registration
+    |
+    v
+Registration Record Created
+```
+
+### User Account Flow
+```text
+Register Account
+      |
+      v
+     Login
+      |
+      v
+User Dashboard
+      |
+      v
+View Linked Registrations
+```
+
+### Administrator Flow
+```text
+Admin Login
+     |
+     v
+Admin Events
+     |
+     +-------------------+
+     |                   |
+     v                   v
+Create Event         Edit Event
+```
+
+## API Structure
+
+```text
+/api/admin
+/api/auth
+/api/events
+/api/registrations
+/api/user/registrations/bind
+```
+
+The event and registration API areas also include dynamic `[id]` routes for record-specific operations.
+
+## Event & Registration Relationship
+
+```text
+Event
+  |
+  | 1
+  |
+  |----< Registration
+              |
+              | optional
+              v
+             User
+```
+
+An event can contain multiple registrations. A registration may optionally be linked to a logged-in user through `userId`.
+
+## Attendance Tracking
+
+The `Registration` model includes:
+
+```text
+attendedAt
+```
+
+A null value indicates no attendance/check-in time has been recorded.
+
+## Local Development
+
+### Requirements
+- Node.js
+- npm
+- Git
+
+### Clone
+```bash
+git clone https://github.com/AwJiaYi/Blood-Donation-System.git
+cd Blood-Donation-System
+```
+
+### Install dependencies
+```bash
+npm install
+```
+
+### Environment
+Create a `.env` file. The Prisma schema expects:
+
+```text
+DATABASE_URL
+```
+
+Configure any additional environment variables required by the authentication or email features in your local setup.
+
+### Prisma
+```bash
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+### Start development server
+```bash
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+## Available Scripts
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run start
+npm run lint
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Software Engineering Practices Demonstrated
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Full-stack web development
+- Next.js App Router
+- TypeScript
+- API route design
+- Relational database modelling
+- Prisma ORM
+- Database migrations
+- Authentication models
+- User and administrator workflows
+- One-to-many relationships
+- User-registration linking
+- CRUD-oriented event management
+- Git version control
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## SDLC Perspective
 
-## Learn More
+### Requirements
+Identify the core actors and workflows:
+- Blood donors / participants
+- Registered users
+- Administrators
+- Donation events
+- Event registrations
 
-To learn more about Next.js, take a look at the following resources:
+### Design
+Design public pages, user flows, admin pages, API routes, and database entities.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Implementation
+Implement Next.js pages, TypeScript logic, authentication, Prisma access, API routes, and registration workflows.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Testing
+Verify login, event creation, registration, dashboard access, registration linking, persistence, and admin operations.
 
-## Deploy on Vercel
+### Maintenance
+Use Prisma migrations and separated user/admin areas to support future changes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Screenshots
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Create:
+
+```text
+docs/screenshots/
+```
+
+Suggested files:
+
+```text
+01-home.png
+02-events.png
+03-event-detail.png
+04-registration.png
+05-login.png
+06-user-dashboard.png
+07-admin-login.png
+08-admin-events.png
+09-admin-event-form.png
+```
+
+Example:
+
+```html
+<p align="center">
+  <img src="docs/screenshots/01-home.png" width="45%">
+  <img src="docs/screenshots/02-events.png" width="45%">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/06-user-dashboard.png" width="45%">
+  <img src="docs/screenshots/08-admin-events.png" width="45%">
+</p>
+```
+
+## Future Improvements
+
+- More comprehensive role-based authorization
+- Expanded automated testing
+- Improved validation and error handling
+- Production database deployment
+- CI/CD workflow
+- Deployment configuration
+- Responsive UI refinement
+- More detailed admin reporting
+- Donation statistics dashboard
+- Notification and reminder workflows
+
+## Author
+
+**Aw Jia Yi**  
+Bachelor of Software Engineering (Honours)  
+Southern University College
